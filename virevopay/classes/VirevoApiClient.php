@@ -31,8 +31,20 @@ class VirevoApiClient
      * @param string $idempotencyKey
      * @return array|null
      */
-    public function createPayment($amountCents, $currency, $reference, $idempotencyKey)
+    public function createPayment($amountCents, $currency, $reference, $idempotencyKey, $returnUrl = '', $cancelUrl = '')
     {
+        $body = [
+            'amount_cents' => (int) $amountCents,
+            'currency' => $currency,
+            'reference' => $reference,
+        ];
+        if ($returnUrl) {
+            $body['return_url'] = $returnUrl;
+        }
+        if ($cancelUrl) {
+            $body['cancel_url'] = $cancelUrl;
+        }
+
         $ch = curl_init($this->baseUrl . '/v1/payments');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -43,11 +55,7 @@ class VirevoApiClient
                 'Content-Type: application/json',
                 'Idempotency-Key: ' . $idempotencyKey,
             ],
-            CURLOPT_POSTFIELDS => json_encode([
-                'amount_cents' => (int) $amountCents,
-                'currency' => $currency,
-                'reference' => $reference,
-            ]),
+            CURLOPT_POSTFIELDS => json_encode($body),
         ]);
 
         $body = curl_exec($ch);

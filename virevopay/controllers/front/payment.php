@@ -60,10 +60,20 @@ class VirevoPayPaymentModuleFrontController extends ModuleFrontController
 
         $orderId = (int) $this->module->currentOrder;
 
+        // Redirections du client après paiement / annulation.
+        $returnUrl = $this->context->link->getPageLink(
+            'order-confirmation',
+            true,
+            null,
+            'id_cart=' . (int) $cart->id . '&id_module=' . (int) $this->module->id
+                . '&id_order=' . $orderId . '&key=' . $customer->secure_key
+        );
+        $cancelUrl = $this->context->link->getPageLink('order', true);
+
         // 2) Créer le paiement Virevo (référence = id de commande).
         require_once _PS_MODULE_DIR_ . 'virevopay/classes/VirevoApiClient.php';
         $api = new VirevoApiClient($this->module->getApiKey());
-        $resp = $api->createPayment((int) round($total * 100), 'EUR', (string) $orderId, 'ps-' . $orderId);
+        $resp = $api->createPayment((int) round($total * 100), 'EUR', (string) $orderId, 'ps-' . $orderId, $returnUrl, $cancelUrl);
 
         if (!$resp || empty($resp['payment_url'])) {
             // Échec de création : la commande reste en attente, on prévient le client.
