@@ -70,4 +70,42 @@ class VirevoApiClient
 
         return is_array($data) ? $data : null;
     }
+
+    /**
+     * Rembourse un paiement (total si $amountCents <= 0). Renvoie le tableau
+     * décodé ou null.
+     */
+    public function refund($paymentId, $amountCents, $reason = '')
+    {
+        $payload = [];
+        if ((int) $amountCents > 0) {
+            $payload['amount_cents'] = (int) $amountCents;
+        }
+        if ($reason) {
+            $payload['reason'] = $reason;
+        }
+
+        $ch = curl_init($this->baseUrl . '/v1/payments/' . rawurlencode($paymentId) . '/refund');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->apiKey,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => json_encode((object) $payload),
+        ]);
+
+        $resp = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if (false === $resp || $code < 200 || $code >= 300) {
+            return null;
+        }
+        $data = json_decode($resp, true);
+
+        return is_array($data) ? $data : null;
+    }
 }

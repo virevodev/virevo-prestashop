@@ -16,7 +16,7 @@ class VirevoPay extends PaymentModule
     {
         $this->name = 'virevopay';
         $this->tab = 'payments_gateways';
-        $this->version = '0.2.0';
+        $this->version = '0.3.0';
         $this->author = 'Virevo';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '8.99.99'];
@@ -36,6 +36,8 @@ class VirevoPay extends PaymentModule
         return parent::install()
             && $this->registerHook('paymentOptions')
             && $this->registerHook('paymentReturn')
+            && $this->registerHook('actionOrderSlipAdd')
+            && $this->installTable()
             && Configuration::updateValue('VIREVOPAY_MODE', 'test')
             && Configuration::updateValue('VIREVOPAY_TEST_KEY', '')
             && Configuration::updateValue('VIREVOPAY_LIVE_KEY', '')
@@ -48,7 +50,73 @@ class VirevoPay extends PaymentModule
             && Configuration::deleteByName('VIREVOPAY_TEST_KEY')
             && Configuration::deleteByName('VIREVOPAY_LIVE_KEY')
             && Configuration::deleteByName('VIREVOPAY_WEBHOOK_SECRET')
+            && $this->uninstallTable()
             && parent::uninstall();
+    }
+
+    /** Table de correspondance commande PrestaShop ↔ paiement Virevo. */
+    private function installTable()
+    {
+        return Db::getInstance()->execute(
+            'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'virevopay_payment` (
+                `id_order` INT UNSIGNED NOT NULL PRIMARY KEY,
+                `virevo_payment_id` VARCHAR(64) NOT NULL
+            ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4'
+        );
+    }
+
+    private function uninstallTable()
+    {
+        return Db::getInstance()->execute('DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'virevopay_payment`');
+    }
+
+    /** Mémorise l'identifiant de paiement Virevo pour une commande. */
+    public function storeVirevoPaymentId($idOrder, $paymentId)
+    {
+        return Db::getInstance()->execute(
+            'REPLACE INTO `' . _DB_PREFIX_ . 'virevopay_payment` (id_order, virevo_payment_id) VALUES ('
+            . (int) $idOrder . ", '" . pSQL($paymentId) . "')"
+        );
+    }
+
+    public function getVirevoPaymentId($idOrder)
+    {
+        return Db::getInstance()->getValue(
+            'SELECT virevo_payment_id FROM `' . _DB_PREFIX_ . 'virevopay_payment` WHERE id_order = ' . (int) $idOrder
+        );
+    }
+
+    /**
+     * Avoir créé dans l'admin PrestaShop → pousse le remboursement à Virevo.
+     */
+    public function hookActionOrderSlipAdd($params)
+    {
+        if (empty($params['order'])) {
+            return;
+        }
+        $order = $params['order'];
+        if (!Validate::isLoadedObject($order) || $order->module !== $this->name) {
+            return;
+        }
+        $paymentId = $this->getVirevoPaymentId($order->id);
+        if (!$paymentId) {
+            return;
+        }
+
+        // Montant du dernier avoir (produits TTC + port TTC).
+        $slips = OrderSlip::getOrdersSlip($order->id_customer, $order->id);
+        $last = is_array($slips) ? end($slips) : false;
+        if (!$last) {
+            return;
+        }
+        $amount = (float) $last['total_products_tax_incl'] + (float) $last['total_shipping_tax_incl'];
+        if ($amount <= 0) {
+            return;
+        }
+
+        require_once _PS_MODULE_DIR_ . 'virevopay/classes/VirevoApiClient.php';
+        $api = new VirevoApiClient($this->getApiKey());
+        $api->refund($paymentId, (int) round($amount * 100), 'Avoir PrestaShop');
     }
 
     /** Clé d'API du mode actif. */

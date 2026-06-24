@@ -80,6 +80,11 @@ class VirevoPayPaymentModuleFrontController extends ModuleFrontController
             Tools::redirect($this->context->link->getModuleLink($this->module->name, 'payment', ['virevo_error' => 1], true));
         }
 
+        // Mémorise l'identifiant Virevo (nécessaire au remboursement via avoir).
+        if (!empty($resp['id'])) {
+            $this->module->storeVirevoPaymentId($orderId, $resp['id']);
+        }
+
         // 3) Rediriger vers la page de paiement Virevo.
         Tools::redirect($resp['payment_url']);
     }
