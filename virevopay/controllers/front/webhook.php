@@ -56,23 +56,45 @@ class VirevoPayWebhookModuleFrontController extends ModuleFrontController
         $order->setCurrentState($paidState);
     }
 
-    /** Signature « t=<unix>,v1=<hmac> » : HMAC-SHA256 de "<t>.<corps>". */
+    /**
+     * Signature « t=<unix>,v1=<hmac>[,v1=<hmac>] » : HMAC-SHA256 de "<t>.<corps>".
+     * Plusieurs v1 possibles pendant une rotation de secret : on accepte si l'un
+     * d'eux correspond.
+     */
     private function verifySignature($secret, $header, $body)
     {
         if (empty($secret) || empty($header)) {
             return false;
         }
-        $parts = [];
-        parse_str(str_replace(',', '&', $header), $parts);
-        if (empty($parts['t']) || empty($parts['v1'])) {
+        $t = null;
+        $sigs = [];
+        foreach (explode(',', $header) as $part) {
+            $kv = explode('=', $part, 2);
+            if (count($kv) !== 2) {
+                continue;
+            }
+            $k = trim($kv[0]);
+            $v = trim($kv[1]);
+            if ($k === 't') {
+                $t = (int) $v;
+            } elseif ($k === 'v1' && $v !== '') {
+                $sigs[] = $v;
+            }
+        }
+        if ($t === null || empty($sigs)) {
             return false;
         }
-        if (abs(time() - (int) $parts['t']) > self::TOLERANCE_SECONDS) {
+        if (abs(time() - $t) > self::TOLERANCE_SECONDS) {
             return false; // anti-rejeu.
         }
-        $expected = hash_hmac('sha256', $parts['t'] . '.' . $body, $secret);
+        $expected = hash_hmac('sha256', $t . '.' . $body, $secret);
+        foreach ($sigs as $v1) {
+            if (hash_equals($expected, $v1)) {
+                return true;
+            }
+        }
 
-        return hash_equals($expected, (string) $parts['v1']);
+        return false;
     }
 
     private function respond($code, array $data)
