@@ -1,0 +1,23 @@
+name: CI
+
+# Vérifie la syntaxe PHP de tous les fichiers du plugin (php -l). Pas de
+# framework requis : php -l contrôle la SYNTAXE, pas la résolution de classes.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  php-lint:
+    name: Syntaxe PHP (php -l)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+      - name: php -l sur tous les .php (hors dist)
+        run: |
+          set -euo pipefail
+          find . -name '*.php' -not -path './dist/*' -not -path './vendor/*' -print0 \
+            | xargs -0 -r -n1 -P4 php -l
