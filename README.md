@@ -36,10 +36,15 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 ## Référence API
-- Guide : https://virevo.fr/developpeurs.html
+- Guide : https://virevo.fr/developpeurs
 - OpenAPI : https://app.virevo.fr/docs
 
 ## Notes / à venir
+- **Limite connue (audit du 2026-09-22)** : seul `payment.succeeded` est traité.
+  `payment.failed`, `payment.canceled` et `payment.refunded` sont acquittés puis
+  ignorés, donc une commande dont le paiement échoue reste en attente
+  indéfiniment, et un remboursement fait depuis le tableau de bord Virevo
+  n'apparaît jamais dans la boutique. À corriger.
 - EUR uniquement.
 - En mode test : `POST /v1/payments/{id}/simulate` passe le paiement à
   `succeeded` et déclenche le webhook → utile pour tester de bout en bout.
