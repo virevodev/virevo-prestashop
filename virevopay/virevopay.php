@@ -16,7 +16,7 @@ class VirevoPay extends PaymentModule
     {
         $this->name = 'virevopay';
         $this->tab = 'payments_gateways';
-        $this->version = '0.3.1';
+        $this->version = '0.4.0';
         $this->author = 'Virevo';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '8.99.99'];
@@ -127,9 +127,37 @@ class VirevoPay extends PaymentModule
             : Configuration::get('VIREVOPAY_TEST_KEY');
     }
 
+    /** Préfixe attendu de la clé, selon le mode actif. */
+    public function getExpectedKeyPrefix()
+    {
+        return Configuration::get('VIREVOPAY_MODE') === 'live' ? 'vrv_live_' : 'vrv_test_';
+    }
+
+    /**
+     * La configuration permet-elle un paiement qui aboutit ?
+     *
+     * Une clé absente, ou une clé dont le préfixe contredit le mode, serait
+     * rejetée par l'API. Le savoir sans appel réseau permet de ne pas proposer
+     * le moyen de paiement du tout.
+     */
+    public function hasUsableApiKey()
+    {
+        $key = trim((string) $this->getApiKey());
+
+        return $key !== '' && strpos($key, $this->getExpectedKeyPrefix()) === 0;
+    }
+
     public function hookPaymentOptions($params)
     {
         if (!$this->active || !$this->checkCurrency($params['cart'])) {
+            return [];
+        }
+
+        // Ne jamais proposer un moyen de paiement qui ne peut pas aboutir. Sans
+        // cette garde, une boutique qui active le module mais oublie la clé
+        // laisse le client choisir « virement instantané », puis échoue en
+        // pleine commande.
+        if (!$this->hasUsableApiKey()) {
             return [];
         }
 
@@ -160,14 +188,68 @@ class VirevoPay extends PaymentModule
         $output = '';
 
         if (Tools::isSubmit('submitVirevo')) {
+            $testKey = trim(Tools::getValue('VIREVOPAY_TEST_KEY'));
+            $liveKey = trim(Tools::getValue('VIREVOPAY_LIVE_KEY'));
+
+            // Une clé dont le préfixe contredit son champ est une faute de
+            // frappe, jamais une intention : l'API la rejetterait, et le
+            // marchand ne s'en apercevrait qu'au premier vrai paiement. On la
+            // refuse à la saisie plutôt que de l'enregistrer.
+            $errors = [];
+            if ($testKey !== '' && strpos($testKey, 'vrv_test_') !== 0) {
+                $errors[] = $this->l('La clé API test doit commencer par « vrv_test_ ».');
+                $testKey = Configuration::get('VIREVOPAY_TEST_KEY');
+            }
+            if ($liveKey !== '' && strpos($liveKey, 'vrv_live_') !== 0) {
+                $errors[] = $this->l('La clé API live doit commencer par « vrv_live_ ».');
+                $liveKey = Configuration::get('VIREVOPAY_LIVE_KEY');
+            }
+
             Configuration::updateValue('VIREVOPAY_MODE', Tools::getValue('VIREVOPAY_MODE'));
-            Configuration::updateValue('VIREVOPAY_TEST_KEY', trim(Tools::getValue('VIREVOPAY_TEST_KEY')));
-            Configuration::updateValue('VIREVOPAY_LIVE_KEY', trim(Tools::getValue('VIREVOPAY_LIVE_KEY')));
+            Configuration::updateValue('VIREVOPAY_TEST_KEY', $testKey);
+            Configuration::updateValue('VIREVOPAY_LIVE_KEY', $liveKey);
             Configuration::updateValue('VIREVOPAY_WEBHOOK_SECRET', trim(Tools::getValue('VIREVOPAY_WEBHOOK_SECRET')));
-            $output .= $this->displayConfirmation($this->l('Réglages enregistrés.'));
+
+            if ($errors) {
+                $output .= $this->displayError(implode(' ', $errors)
+                    . ' ' . $this->l('Vérifiez que vous avez copié la clé du bon mode depuis Virevo → Développeurs.'));
+            } else {
+                $output .= $this->displayConfirmation($this->l('Réglages enregistrés.'));
+            }
         }
 
-        return $output . $this->renderForm();
+        return $output . $this->renderStatus() . $this->renderForm();
+    }
+
+    /**
+     * L'état de la configuration, dit en haut de l'écran, en permanence.
+     *
+     * Le danger n'est pas le mode test, c'est un mode test qu'on a OUBLIÉ : la
+     * boutique propose le virement, les clients commandent, et rien n'arrive
+     * jamais. Même chose pour un secret de webhook manquant, qui laisse les
+     * commandes en attente indéfiniment.
+     */
+    protected function renderStatus()
+    {
+        if (!$this->hasUsableApiKey()) {
+            return $this->displayWarning(
+                $this->l('Aucune clé d\'API valide pour le mode actif : le moyen de paiement reste masqué au checkout.')
+            );
+        }
+
+        if (trim((string) Configuration::get('VIREVOPAY_WEBHOOK_SECRET')) === '') {
+            return $this->displayWarning(
+                $this->l('Aucun secret de webhook : vos clients pourront payer, mais les commandes resteront « en attente de virement ».')
+            );
+        }
+
+        if (Configuration::get('VIREVOPAY_MODE') !== 'live') {
+            return $this->displayWarning(
+                $this->l('Module en mode test : les paiements sont fictifs, aucun argent n\'est réellement encaissé.')
+            );
+        }
+
+        return '';
     }
 
     protected function renderForm()
