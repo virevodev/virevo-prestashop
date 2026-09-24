@@ -163,7 +163,7 @@ class VirevoPayWebhookModuleFrontController extends ModuleFrontController
         $message->message = sprintf(
             'Remboursement de %s enregistré chez Virevo. Aucun avoir n\'a été créé'
             . ' automatiquement : à faire depuis cette commande si votre comptabilité l\'exige.',
-            Tools::displayPrice($amount, (int) $order->id_currency)
+            $this->formatAmount($amount, (int) $order->id_currency)
         );
         $message->add();
 
@@ -173,6 +173,27 @@ class VirevoPayWebhookModuleFrontController extends ModuleFrontController
         ) {
             $order->setCurrentState($refundState);
         }
+    }
+
+    /**
+     * Formate un montant avec le composant Locale.
+     *
+     * `Tools::displayPrice()` est déprécié depuis PrestaShop 1.7.6 au profit de
+     * `Locale::formatPrice()`, et le validateur des Addons relève l'usage des
+     * méthodes dépréciées. On garde un repli : un module distribué tourne sur
+     * des boutiques dont on ne choisit pas la version.
+     */
+    private function formatAmount($amount, $idCurrency)
+    {
+        $currency = new Currency($idCurrency);
+        $iso = Validate::isLoadedObject($currency) ? $currency->iso_code : 'EUR';
+
+        $context = Context::getContext();
+        if (isset($context->currentLocale)) {
+            return $context->currentLocale->formatPrice($amount, $iso);
+        }
+
+        return $amount . ' ' . $iso;
     }
 
     /**
