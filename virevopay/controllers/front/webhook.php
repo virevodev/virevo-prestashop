@@ -28,23 +28,54 @@ class VirevoPayWebhookModuleFrontController extends ModuleFrontController
         }
 
         $event = json_decode($payload, true);
-        if (is_array($event) && isset($event['type']) && $event['type'] === 'payment.succeeded') {
-            $this->markOrderPaid($event);
+        $type = is_array($event) && isset($event['type']) ? $event['type'] : '';
+
+        switch ($type) {
+            case 'payment.succeeded':
+                $this->markOrderPaid($event);
+                break;
+
+            // Les TROIS façons dont un paiement se termine sans argent. Jusqu'au
+            // 2026-09-24 elles étaient acquittées puis jetées, et la commande
+            // restait « en attente de virement » indéfiniment.
+            case 'payment.failed':
+            case 'payment.canceled':
+            case 'payment.expired':
+                $this->closeUnpaidOrder($event, $type);
+                break;
+
+            case 'payment.refunded':
+                $this->recordRefund($event);
+                break;
         }
 
+        // Un type inconnu est acquitté volontairement : un événement ajouté plus
+        // tard ne doit pas faire échouer la livraison chez les marchands qui
+        // n'ont pas mis à jour le module.
         $this->respond(200, ['received' => true]);
     }
 
-    private function markOrderPaid(array $event)
+    /** Retrouve la commande d'un événement, ou null. */
+    private function resolveOrder(array $event)
     {
         $payment = isset($event['data']['payment']) ? $event['data']['payment'] : [];
         $orderId = isset($payment['reference']) ? (int) $payment['reference'] : 0;
         if ($orderId <= 0) {
-            return;
+            return null;
         }
 
         $order = new Order($orderId);
         if (!Validate::isLoadedObject($order) || $order->module !== 'virevopay') {
+            return null;
+        }
+
+        return $order;
+    }
+
+    private function markOrderPaid(array $event)
+    {
+        $order = $this->resolveOrder($event);
+        if ($order === null) {
             return;
         }
 
@@ -54,6 +85,94 @@ class VirevoPayWebhookModuleFrontController extends ModuleFrontController
         }
 
         $order->setCurrentState($paidState);
+    }
+
+    /**
+     * Clôt une commande dont le paiement ne viendra pas.
+     *
+     * Deux gardes valent plus que le reste de la méthode.
+     *
+     * 1. **Une commande réglée n'est jamais touchée.** Un `payment.failed` peut
+     *    arriver après un `payment.succeeded` : notification tardive, ou
+     *    tentative précédente annoncée en retard. Annuler alors une commande
+     *    payée serait bien pire que de ne rien faire.
+     * 2. **Un état terminal n'est pas réécrit.** Le marchand a pu annuler ou
+     *    rembourser lui-même : sa décision prime sur un événement qui redit ce
+     *    qu'on sait déjà.
+     */
+    private function closeUnpaidOrder(array $event, $type)
+    {
+        $order = $this->resolveOrder($event);
+        if ($order === null) {
+            return;
+        }
+
+        $current = (int) $order->getCurrentState();
+        $terminal = [
+            (int) Configuration::get('PS_OS_PAYMENT'),
+            (int) Configuration::get('PS_OS_CANCELED'),
+            (int) Configuration::get('PS_OS_REFUND'),
+            (int) Configuration::get('PS_OS_ERROR'),
+        ];
+        if (in_array($current, $terminal, true)) {
+            return;
+        }
+
+        if ($type === 'payment.failed') {
+            // « Erreur de paiement » laisse la commande visible : le client peut
+            // réessayer de régler.
+            $order->setCurrentState((int) Configuration::get('PS_OS_ERROR'));
+
+            return;
+        }
+
+        // Expiré ou annulé : la demande n'est plus payable.
+        $order->setCurrentState((int) Configuration::get('PS_OS_CANCELED'));
+    }
+
+    /**
+     * Répercute un remboursement décidé depuis le tableau de bord Virevo.
+     *
+     * ⚠️ **On ne crée surtout PAS d'avoir.** Le module écoute
+     * `actionOrderSlipAdd` pour pousser les avoirs PrestaShop vers Virevo : créer
+     * un avoir ici déclencherait ce hook, qui renverrait un second remboursement
+     * à Virevo, qui nous renotifierait. La boucle est réelle, et elle coûterait
+     * de l'argent réel.
+     *
+     * On se limite donc à ce qui est sûr : passer la commande en « Remboursé »
+     * quand le remboursement couvre le total, et tracer un message dans tous les
+     * cas. Le marchand garde la main sur l'avoir comptable.
+     */
+    private function recordRefund(array $event)
+    {
+        $order = $this->resolveOrder($event);
+        if ($order === null) {
+            return;
+        }
+
+        $refund = isset($event['data']['refund']) ? $event['data']['refund'] : [];
+        $cents = isset($refund['amount_cents']) ? (int) $refund['amount_cents'] : 0;
+        if ($cents <= 0) {
+            return;
+        }
+        $amount = $cents / 100;
+
+        $message = new Message();
+        $message->id_order = (int) $order->id;
+        $message->private = 1;
+        $message->message = sprintf(
+            'Remboursement de %s enregistré chez Virevo. Aucun avoir n\'a été créé'
+            . ' automatiquement : à faire depuis cette commande si votre comptabilité l\'exige.',
+            Tools::displayPrice($amount, (int) $order->id_currency)
+        );
+        $message->add();
+
+        $refundState = (int) Configuration::get('PS_OS_REFUND');
+        if ($amount + 0.01 >= (float) $order->total_paid
+            && (int) $order->getCurrentState() !== $refundState
+        ) {
+            $order->setCurrentState($refundState);
+        }
     }
 
     /**
