@@ -42,6 +42,13 @@ class VirevoPayPaymentModuleFrontController extends ModuleFrontController
             Tools::redirect('index.php?controller=order&step=1');
         }
 
+        // Garde aussi à l'arrivée ici, et pas seulement dans hookPaymentOptions :
+        // le panier a pu changer depuis. Il faut refuser AVANT validateOrder,
+        // sinon une commande resterait créée pour un paiement impossible.
+        if (!$this->module->reachesMinimum($cart)) {
+            Tools::redirect('index.php?controller=order&step=1');
+        }
+
         $currency = $this->context->currency;
         $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
 
