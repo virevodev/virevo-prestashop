@@ -12,11 +12,18 @@ if (!defined('_PS_VERSION_')) {
 
 class VirevoPay extends PaymentModule
 {
+    /**
+     * Montant minimal d'un paiement Virevo, en centimes TTC. L'API refuse tout
+     * encaissement plus petit (AMOUNT_BELOW_MINIMUM). Même valeur que
+     * MIN_PAYMENT_CENTS côté Virevo : à modifier ensemble.
+     */
+    const MIN_AMOUNT_CENTS = 10000;
+
     public function __construct()
     {
         $this->name = 'virevopay';
         $this->tab = 'payments_gateways';
-        $this->version = '0.5.0';
+        $this->version = '0.6.0';
         $this->author = 'Virevo';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '8.99.99'];
@@ -161,6 +168,11 @@ class VirevoPay extends PaymentModule
             return [];
         }
 
+        // Sous le minimum, l'API refuserait le paiement : on ne le propose pas.
+        if (!$this->reachesMinimum($params['cart'])) {
+            return [];
+        }
+
         $option = new \PrestaShop\PrestaShop\Core\Payment\PaymentOption();
         $option->setModuleName($this->name)
             ->setCallToActionText($this->l('Payer par virement instantané'))
@@ -174,6 +186,16 @@ class VirevoPay extends PaymentModule
     {
         // Page de confirmation par défaut de PrestaShop (le statut suit le webhook).
         return '';
+    }
+
+    /**
+     * Vrai si le total TTC du panier atteint le minimum accepté par Virevo.
+     */
+    public function reachesMinimum($cart)
+    {
+        $total = (float) $cart->getOrderTotal(true, Cart::BOTH);
+
+        return (int) round($total * 100) >= self::MIN_AMOUNT_CENTS;
     }
 
     public function checkCurrency($cart)
