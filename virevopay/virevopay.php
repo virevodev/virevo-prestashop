@@ -17,13 +17,13 @@ class VirevoPay extends PaymentModule
      * encaissement plus petit (AMOUNT_BELOW_MINIMUM). Même valeur que
      * MIN_PAYMENT_CENTS côté Virevo : à modifier ensemble.
      */
-    const MIN_AMOUNT_CENTS = 10000;
+    const MIN_AMOUNT_CENTS = 100;
 
     public function __construct()
     {
         $this->name = 'virevopay';
         $this->tab = 'payments_gateways';
-        $this->version = '0.6.0';
+        $this->version = '0.6.1';
         $this->author = 'Virevo';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '8.99.99'];

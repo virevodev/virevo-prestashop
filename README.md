@@ -40,7 +40,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - OpenAPI : https://app.virevo.fr/docs
 
 ## Notes / à venir
-- **Montant minimal de 100 € TTC** depuis la 0.6.0 : sous ce montant, l'API
+- **Montant minimal de 1 € TTC** depuis la 0.6.1 (100 € de la 0.6.0 à la 0.6.1) : sous ce montant, l'API
   refuse le paiement, donc le module ne propose pas Virevo.
 - **Les quatre événements sont traités** depuis la 0.5.0. Un paiement refusé
   passe la commande en « Erreur de paiement », une demande annulée ou expirée en
