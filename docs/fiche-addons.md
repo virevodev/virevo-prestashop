@@ -3,6 +3,10 @@
 > Préparé le 2026-10-22 pour la v0.6.2. Chaque bloc correspond à un champ du
 > formulaire « Ajouter un produit ». Les limites de caractères d'Addons changent :
 > si un champ refuse un texte, le raccourcir par la fin.
+>
+> Règle Addons : aucune adresse e-mail externe ni invitation à acheter ailleurs
+> (signature, fiche, réponses aux clients). Le support passe par Addons. Le
+> lien vers virevo.fr reste nécessaire : le module exige un compte Virevo.
 
 ## Réglages du produit
 
@@ -16,7 +20,6 @@
 | Fichier | `dist/virevopay-0.6.2.zip` |
 | Logo | `virevopay/logo.png` (200 × 200) |
 | Site de l'éditeur | https://virevo.fr |
-| Support | contact@virevo.fr |
 
 ---
 
