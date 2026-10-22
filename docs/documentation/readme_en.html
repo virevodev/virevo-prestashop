@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Virevo for PrestaShop: documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <img src="../../virevopay/logo.png" alt="" class="logo">
+  <div>
+    <h1>Virevo: instant bank transfer payments</h1>
+    <p class="sub">PrestaShop module <code>virevopay</code>, version 0.6.2. PrestaShop 1.7.6 to 9.x.</p>
+  </div>
+</header>
+
+<h2>1. What the module does</h2>
+<p>The module adds a "Pay by instant bank transfer" option to your checkout. The customer picks their bank, approves the transfer in their banking app, and the order moves to "Payment accepted" on its own. The money goes straight from the customer's account to your IBAN: Virevo never holds your funds.</p>
+<figure><img src="../captures/1-paiement.png" alt=""><figcaption>The payment option in the PrestaShop checkout.</figcaption></figure>
+
+<h2>2. Requirements</h2>
+<ul>
+  <li>PrestaShop 1.7.6 to 9.x, PHP with the cURL extension.</li>
+  <li>A store selling in euros.</li>
+  <li>A Virevo account (sign up at virevo.fr). Virevo charges a fee on each payment received, with no subscription. Pricing: virevo.fr/#tarif</li>
+  <li>Your store must be reachable from the internet, so that Virevo can call its webhook URL.</li>
+</ul>
+
+<h2>3. Installation</h2>
+<ol>
+  <li>In the back office, open <b>Modules › Module Manager</b> and click <b>Upload a module</b>.</li>
+  <li>Pick the ZIP file <code>virevopay-0.6.2.zip</code>. PrestaShop installs the module.</li>
+  <li>Click <b>Configure</b> on the module.</li>
+</ol>
+
+<h2>4. Configuration</h2>
+<figure><img src="../captures/3-reglages.png" alt=""><figcaption>The settings page of the module.</figcaption></figure>
+<table>
+  <tr><th>Field</th><th>What to enter</th></tr>
+  <tr><td>Mode</td><td><b>Test (sandbox)</b> to try the module, <b>Live</b> to receive real payments.</td></tr>
+  <tr><td>Test API key</td><td>Your key starting with <code>vrv_test_</code>, from Virevo › Developers.</td></tr>
+  <tr><td>Live API key</td><td>Your key starting with <code>vrv_live_</code>, from Virevo › Developers. Available once your Virevo account is verified.</td></tr>
+  <tr><td>Webhook secret</td><td>The secret starting with <code>whsec_</code>, from Virevo › Developers.</td></tr>
+</table>
+<p>Under the webhook secret field, the module shows <b>your store's webhook URL</b>. Copy it and register it in Virevo › Developers. Without it, orders stay "Awaiting bank wire payment" after the customer has paid.</p>
+<p class="note">The payment option stays hidden from customers as long as no valid API key is set for the selected mode. The settings page also warns you when the webhook secret is missing.</p>
+
+<h2>5. Testing before going live</h2>
+<ol>
+  <li>Leave the mode on <b>Test</b>. Payments are simulated: no money moves.</li>
+  <li>In Virevo › Developers, the <b>Send a test</b> button sends a signed test event to your webhook URL. It checks that Virevo can reach your store.</li>
+  <li>Place an order on your store and choose "Pay by instant bank transfer". The order is created as "Awaiting bank wire payment" and you are redirected to the Virevo payment page.</li>
+  <li>To simulate a settled payment, follow the "Test mode" section of the developer guide at virevo.fr/developpeurs. The order then moves to "Payment accepted".</li>
+  <li>When everything works, enter your live key and switch the mode to <b>Live</b>.</li>
+</ol>
+
+<h2>6. Order statuses</h2>
+<table>
+  <tr><th>Event at Virevo</th><th>PrestaShop order status</th></tr>
+  <tr><td>Customer clicks "Order"</td><td>Awaiting bank wire payment</td></tr>
+  <tr><td>Payment received</td><td>Payment accepted</td></tr>
+  <tr><td>Payment declined by the bank</td><td>Payment error</td></tr>
+  <tr><td>Payment cancelled or expired</td><td>Cancelled (stock released)</td></tr>
+  <tr><td>Full refund</td><td>Refunded</td></tr>
+</table>
+<figure><img src="../captures/2-commande-payee.png" alt=""><figcaption>An order paid by instant transfer, in the back office.</figcaption></figure>
+<p>Every webhook is checked with an HMAC-SHA256 signature and a timestamp, which blocks forged and replayed messages.</p>
+
+<h2>7. Refunds</h2>
+<p>To refund a customer, create a <b>credit slip</b> on the order in PrestaShop (partial refund or full refund). The module sends the refund to Virevo automatically.</p>
+<p>A refund made directly in your Virevo account is reported on the order as a private message, and the order moves to "Refunded" if it covers the total. No credit slip is created in that case: create it yourself if you need one, it will not trigger a second refund.</p>
+
+<h2>8. If Virevo is unreachable</h2>
+<p>If the payment cannot be created (network outage, maintenance), the order is cancelled and its stock released. The customer gets their cart back with a message and can try again or choose another payment method.</p>
+<figure><img src="../captures/4-service-indisponible.png" alt="" class="tall"><figcaption>The message shown to the customer.</figcaption></figure>
+
+<h2>9. Data sent to Virevo</h2>
+<p>Only the amount, currency, order number and the store's return URLs are sent to Virevo. No personal customer data goes through the module.</p>
+
+<h2>10. Limits</h2>
+<ul>
+  <li>Euros only. Minimum amount: €1 including tax. Below that, the option is not offered.</li>
+  <li>The module's back office screens are in French.</li>
+  <li>Not tested with third-party one-page checkout modules.</li>
+</ul>
+
+<h2>11. Uninstalling</h2>
+<p>In Modules › Module Manager, uninstall the module. Its settings are deleted. Past orders are kept with their status.</p>
+
+<h2>12. Support</h2>
+<p>Ask your questions through the PrestaShop Addons messaging, from the module page.</p>
+</body>
+</html>
