@@ -23,10 +23,10 @@ class VirevoPay extends PaymentModule
     {
         $this->name = 'virevopay';
         $this->tab = 'payments_gateways';
-        $this->version = '0.6.1';
+        $this->version = '0.6.2';
         $this->author = 'Virevo';
         $this->need_instance = 0;
-        $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '8.99.99'];
+        $this->ps_versions_compliancy = ['min' => '1.7.6.0', 'max' => '9.99.99'];
         $this->bootstrap = true;
         $this->currencies = true;
         $this->currencies_mode = 'checkbox';
