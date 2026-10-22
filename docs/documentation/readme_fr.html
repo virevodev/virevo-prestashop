@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Virevo pour PrestaShop : documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <img src="../../virevopay/logo.png" alt="" class="logo">
+  <div>
+    <h1>Virevo : paiement par virement instantané</h1>
+    <p class="sub">Module PrestaShop <code>virevopay</code>, version 0.6.2. PrestaShop 1.7.6 à 9.x.</p>
+  </div>
+</header>
+
+<h2>1. Ce que fait le module</h2>
+<p>Le module ajoute au tunnel de commande un moyen de paiement « Payer par virement instantané ». Le client choisit sa banque, valide le virement dans son application bancaire, et la commande passe d'elle-même en « Paiement accepté ». L'argent va directement du compte du client à votre IBAN : Virevo ne détient jamais vos fonds.</p>
+<figure><img src="../captures/1-paiement.png" alt=""><figcaption>Le moyen de paiement dans le tunnel de commande PrestaShop.</figcaption></figure>
+
+<h2>2. Prérequis</h2>
+<ul>
+  <li>PrestaShop 1.7.6 à 9.x, PHP avec l'extension cURL.</li>
+  <li>Une boutique qui vend en euros.</li>
+  <li>Un compte Virevo (inscription sur virevo.fr). Virevo prélève des frais sur chaque paiement reçu, sans abonnement. Tarifs : virevo.fr/#tarif</li>
+  <li>Une boutique joignable depuis internet, pour que Virevo puisse appeler son URL de webhook.</li>
+</ul>
+
+<h2>3. Installation</h2>
+<ol>
+  <li>Dans l'administration, ouvrez <b>Modules › Gestionnaire de modules</b> et cliquez sur <b>Importer un module</b>.</li>
+  <li>Choisissez le fichier <code>virevopay-0.6.2.zip</code>. PrestaShop installe le module.</li>
+  <li>Cliquez sur <b>Configurer</b> sur le module.</li>
+</ol>
+
+<h2>4. Configuration</h2>
+<figure><img src="../captures/3-reglages.png" alt=""><figcaption>La page de réglages du module.</figcaption></figure>
+<table>
+  <tr><th>Champ</th><th>À saisir</th></tr>
+  <tr><td>Mode</td><td><b>Test (bac à sable)</b> pour essayer le module, <b>Live</b> pour recevoir de vrais paiements.</td></tr>
+  <tr><td>Clé API test</td><td>Votre clé commençant par <code>vrv_test_</code>, dans Virevo › Développeurs.</td></tr>
+  <tr><td>Clé API live</td><td>Votre clé commençant par <code>vrv_live_</code>, dans Virevo › Développeurs. Disponible une fois votre compte Virevo vérifié.</td></tr>
+  <tr><td>Secret de webhook</td><td>Le secret commençant par <code>whsec_</code>, dans Virevo › Développeurs.</td></tr>
+</table>
+<p>Sous le champ du secret, le module affiche <b>l'URL de webhook de votre boutique</b>. Copiez-la et enregistrez-la dans Virevo › Développeurs. Sans elle, les commandes restent « En attente de virement » alors que le client a payé.</p>
+<p class="note">Le moyen de paiement reste masqué aux clients tant qu'aucune clé d'API valide n'est saisie pour le mode choisi. La page de réglages vous avertit aussi quand le secret de webhook manque.</p>
+
+<h2>5. Tester avant de passer en réel</h2>
+<ol>
+  <li>Laissez le mode sur <b>Test</b>. Les paiements sont fictifs : aucun argent ne bouge.</li>
+  <li>Dans Virevo › Développeurs, le bouton <b>Envoyer un test</b> envoie un événement signé à votre URL de webhook. Il vérifie que Virevo joint bien votre boutique.</li>
+  <li>Passez une commande sur votre boutique en choisissant « Payer par virement instantané ». La commande est créée en « En attente de virement » et vous êtes redirigé vers la page de paiement Virevo.</li>
+  <li>Pour simuler un paiement reçu, suivez la section « Mode test » du guide développeurs sur virevo.fr/developpeurs. La commande passe alors en « Paiement accepté ».</li>
+  <li>Quand tout fonctionne, saisissez votre clé live et passez le mode sur <b>Live</b>.</li>
+</ol>
+
+<h2>6. États de commande</h2>
+<table>
+  <tr><th>Événement chez Virevo</th><th>État de la commande PrestaShop</th></tr>
+  <tr><td>Le client clique sur « Commander »</td><td>En attente de virement</td></tr>
+  <tr><td>Paiement reçu</td><td>Paiement accepté</td></tr>
+  <tr><td>Paiement refusé par la banque</td><td>Erreur de paiement</td></tr>
+  <tr><td>Paiement annulé ou expiré</td><td>Annulé (stock restitué)</td></tr>
+  <tr><td>Remboursement total</td><td>Remboursé</td></tr>
+</table>
+<figure><img src="../captures/2-commande-payee.png" alt=""><figcaption>Une commande payée par virement instantané, dans l'administration.</figcaption></figure>
+<p>Chaque webhook est vérifié par une signature HMAC-SHA256 et un horodatage, ce qui bloque les messages falsifiés ou rejoués.</p>
+
+<h2>7. Remboursements</h2>
+<p>Pour rembourser un client, créez un <b>avoir</b> sur la commande dans PrestaShop (remboursement partiel ou total). Le module transmet le remboursement à Virevo automatiquement.</p>
+<p>Un remboursement fait directement dans votre compte Virevo est signalé sur la commande par un message privé, et la commande passe en « Remboursé » s'il couvre le total. Aucun avoir n'est créé dans ce cas : créez-le vous-même si vous en avez besoin, il ne déclenchera pas de second remboursement.</p>
+
+<h2>8. Si Virevo est injoignable</h2>
+<p>Si le paiement ne peut pas être créé (panne réseau, maintenance), la commande est annulée et son stock restitué. Le client retrouve son panier avec un message et peut réessayer ou choisir un autre moyen de paiement.</p>
+<figure><img src="../captures/4-service-indisponible.png" alt="" class="tall"><figcaption>Le message affiché au client.</figcaption></figure>
+
+<h2>9. Données transmises à Virevo</h2>
+<p>Seuls le montant, la devise, le numéro de commande et les adresses de retour de la boutique sont envoyés à Virevo. Aucune donnée personnelle du client ne transite par le module.</p>
+
+<h2>10. Limites</h2>
+<ul>
+  <li>Euros uniquement. Montant minimal : 1 € TTC. En dessous, le moyen de paiement n'est pas proposé.</li>
+  <li>Les écrans d'administration du module sont en français.</li>
+  <li>Non testé avec les modules de commande en une page d'éditeurs tiers.</li>
+</ul>
+
+<h2>11. Désinstallation</h2>
+<p>Dans Modules › Gestionnaire de modules, désinstallez le module. Ses réglages sont supprimés. Les commandes passées sont conservées avec leur état.</p>
+
+<h2>12. Support</h2>
+<p>Posez vos questions par la messagerie de PrestaShop Addons, depuis la page du module.</p>
+</body>
+</html>

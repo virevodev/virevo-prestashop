@@ -19,6 +19,11 @@
 | Langues de l'interface | Français |
 | Fichier | `dist/virevopay-0.6.2.zip` |
 | Logo | `virevopay/logo.png` (200 × 200) |
+| Documentation | `docs/documentation/readme_en.pdf` et `readme_fr.pdf` (noms imposés). Après une modification des `.html`, relancer `node docs/documentation/rendre-pdf.mjs <playwright>` |
+| Pays | France |
+| Bénéfice | Propose un paiement adapté à vos clients |
+| Multiboutique | Partiellement (jamais testé) |
+| One page checkout | Non (pas testé avec les modules tiers) |
 | Site de l'éditeur | https://virevo.fr |
 
 ---
@@ -53,6 +58,7 @@ Virevo ajoute au tunnel de commande un moyen de paiement « Payer par virement i
 
 **Prérequis**
 - Un compte Virevo (inscription sur virevo.fr) et une boutique en euros.
+- Virevo prélève des frais sur chaque paiement reçu, sans abonnement. Tarifs : virevo.fr/#tarif
 - Les clés d'API et le secret de webhook se trouvent dans Virevo › Développeurs.
 
 **Installation**
@@ -96,6 +102,7 @@ Virevo adds a "Pay by instant bank transfer" option to your checkout. The custom
 
 **Requirements**
 - A Virevo account (sign up at virevo.fr) and a store selling in euros.
+- Virevo charges a fee on each payment received, with no subscription. Pricing: virevo.fr/#tarif
 - API keys and the webhook secret are in Virevo › Developers.
 - The module interface is in French.
 
