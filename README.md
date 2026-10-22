@@ -1,6 +1,6 @@
 # Virevo for PrestaShop (`virevopay`)
 
-Module de paiement **virement instantané (Virevo)** pour PrestaShop 1.7 / 8 —
+Module de paiement **virement instantané (Virevo)** pour PrestaShop 1.7.6 à 9 —
 sans frais de carte. Le client est redirigé vers une page de paiement Virevo ;
 la commande passe « Paiement accepté » à réception du virement via un **webhook
 signé**.
@@ -40,6 +40,14 @@ git tag v0.1.0 && git push origin v0.1.0
 - OpenAPI : https://app.virevo.fr/docs
 
 ## Notes / à venir
+- **Testé de bout en bout sur PrestaShop 9.0.3** le 2026-10-22 (0.6.2) : commande
+  invitée, redirection, webhook signé, « Paiement accepté ». Jusqu'à la 0.6.1, le
+  module se déclarait compatible jusqu'à 8.99.99 et **PrestaShop 9 refusait de
+  l'installer**.
+- **API Virevo injoignable** (0.6.2) : la commande créée est annulée (stock
+  restitué), le client retrouve son panier avec un message et peut payer
+  autrement. Avant, il tombait sur un panier vide et la commande restait « en
+  attente de virement » pour toujours.
 - **Montant minimal de 1 € TTC** depuis la 0.6.1 (100 € de la 0.6.0 à la 0.6.1) : sous ce montant, l'API
   refuse le paiement, donc le module ne propose pas Virevo.
 - **Les quatre événements sont traités** depuis la 0.5.0. Un paiement refusé

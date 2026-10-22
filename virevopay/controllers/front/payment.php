@@ -83,8 +83,7 @@ class VirevoPayPaymentModuleFrontController extends ModuleFrontController
         $resp = $api->createPayment((int) round($total * 100), 'EUR', (string) $orderId, 'ps-' . $orderId, $returnUrl, $cancelUrl);
 
         if (!$resp || empty($resp['payment_url'])) {
-            // Échec de création : la commande reste en attente, on prévient le client.
-            Tools::redirect($this->context->link->getModuleLink($this->module->name, 'payment', ['virevo_error' => 1], true));
+            $this->abandonOrder($orderId, $cart);
         }
 
         // Mémorise l'identifiant Virevo (nécessaire au remboursement via avoir).
@@ -94,5 +93,33 @@ class VirevoPayPaymentModuleFrontController extends ModuleFrontController
 
         // 3) Rediriger vers la page de paiement Virevo.
         Tools::redirect($resp['payment_url']);
+    }
+
+    /**
+     * Le paiement Virevo n'a pas pu être créé (API injoignable ou en erreur).
+     *
+     * Jusqu'à la 0.6.1, le client était renvoyé vers ce même contrôleur, qui
+     * trouvait un panier déjà converti en commande : il atterrissait sur un
+     * panier vide, sans message, et la commande restait « en attente de
+     * virement » pour toujours, stock réservé, puisqu'aucun paiement n'existait
+     * pour la clore. On annule donc la commande (ce qui restitue le stock), on
+     * rend au client un panier identique et on lui dit quoi faire.
+     */
+    private function abandonOrder($orderId, Cart $cart)
+    {
+        $order = new Order((int) $orderId);
+        if (Validate::isLoadedObject($order)) {
+            $order->setCurrentState((int) Configuration::get('PS_OS_CANCELED'));
+        }
+
+        $copy = $cart->duplicate();
+        if ($copy && !empty($copy['success'])) {
+            $this->context->cookie->id_cart = (int) $copy['cart']->id;
+            $this->context->cart = $copy['cart'];
+            $this->context->cookie->write();
+        }
+
+        $this->errors[] = $this->module->l('Le paiement par virement instantané est momentanément indisponible. Votre panier a été conservé : vous pouvez réessayer ou choisir un autre moyen de paiement.', 'payment');
+        $this->redirectWithNotifications($this->context->link->getPageLink('order', true));
     }
 }
